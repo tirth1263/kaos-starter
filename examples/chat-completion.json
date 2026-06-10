@@ -1,0 +1,10 @@
+{
+  "model": "ollama/smollm2:135m",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello coordinator. What can your worker team help with?"
+    }
+  ]
+}
+

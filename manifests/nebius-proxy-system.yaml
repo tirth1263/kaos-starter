@@ -1,0 +1,167 @@
+---
+# KAOS Starter: optional Nebius proxy model path.
+# Before applying:
+#   export NEBIUS_KEY="your-key"
+#   kubectl create namespace kaos-demo --dry-run=client -o yaml | kubectl apply -f -
+#   kubectl create secret generic nebius-secrets -n kaos-demo --from-literal "api-key=$NEBIUS_KEY" --dry-run=client -o yaml | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+    app.kubernetes.io/part-of: kaos-starter
+---
+apiVersion: kaos.tools/v1alpha1
+kind: ModelAPI
+metadata:
+  name: demo-modelapi
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+spec:
+  mode: Proxy
+  proxyConfig:
+    models:
+      - "*"
+    provider: "nebius"
+    apiKey:
+      valueFrom:
+        secretKeyRef:
+          name: nebius-secrets
+          key: api-key
+---
+apiVersion: kaos.tools/v1alpha1
+kind: MCPServer
+metadata:
+  name: demo-echo-mcp
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+spec:
+  type: python-runtime
+  config:
+    tools:
+      fromPackage: "test-mcp-echo-server"
+---
+apiVersion: kaos.tools/v1alpha1
+kind: MCPServer
+metadata:
+  name: demo-calc-mcp
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+spec:
+  type: python-runtime
+  config:
+    tools:
+      fromString: |
+        import ast
+        import operator
+
+        _OPS = {
+            ast.Add: operator.add,
+            ast.Sub: operator.sub,
+            ast.Mult: operator.mul,
+            ast.Div: operator.truediv,
+            ast.Pow: operator.pow,
+            ast.USub: operator.neg,
+        }
+
+        def _eval(node):
+            if isinstance(node, ast.Expression):
+                return _eval(node.body)
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return node.value
+            if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
+                return _OPS[type(node.op)](_eval(node.left), _eval(node.right))
+            if isinstance(node, ast.UnaryOp) and type(node.op) in _OPS:
+                return _OPS[type(node.op)](_eval(node.operand))
+            raise ValueError("Only arithmetic expressions are supported.")
+
+        def calculate(expression: str) -> str:
+            """Evaluate a basic arithmetic expression and return the result."""
+            try:
+                parsed = ast.parse(expression, mode="eval")
+                return f"Result: {_eval(parsed)}"
+            except Exception as exc:
+                return f"Error: {exc}"
+---
+apiVersion: kaos.tools/v1alpha1
+kind: Agent
+metadata:
+  name: coordinator
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+    app.kubernetes.io/component: coordinator
+spec:
+  model: "openai/gpt-oss-20b"
+  modelAPI: demo-modelapi
+  mcpServers:
+    - demo-echo-mcp
+    - demo-calc-mcp
+  config:
+    description: "Coordinator agent that orchestrates worker agents."
+    instructions: |
+      You are a coordinator agent managing a team of workers.
+      You can delegate tasks to:
+      - worker-1: General purpose tasks and echo checks.
+      - worker-2: Analysis and arithmetic tasks.
+
+      You have access to echo and calculate tools. Decide whether to handle
+      a request yourself or delegate it to a worker.
+    reasoningLoopMaxSteps: 10
+  agentNetwork:
+    access:
+      - worker-1
+      - worker-2
+---
+apiVersion: kaos.tools/v1alpha1
+kind: Agent
+metadata:
+  name: worker-1
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+    app.kubernetes.io/component: worker
+spec:
+  model: "openai/gpt-oss-20b"
+  modelAPI: demo-modelapi
+  mcpServers:
+    - demo-echo-mcp
+  config:
+    description: "General purpose worker agent."
+    instructions: |
+      You are worker-1, a general purpose assistant.
+      You receive delegated tasks from the coordinator.
+      You have access to an echo tool for testing.
+      Complete tasks efficiently and return clear results.
+    reasoningLoopMaxSteps: 5
+  agentNetwork:
+    access: []
+---
+apiVersion: kaos.tools/v1alpha1
+kind: Agent
+metadata:
+  name: worker-2
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+    app.kubernetes.io/component: worker
+spec:
+  model: "openai/gpt-oss-20b"
+  modelAPI: demo-modelapi
+  mcpServers:
+    - demo-calc-mcp
+  config:
+    description: "Specialized analysis and calculator worker agent."
+    instructions: |
+      You are worker-2, specialized in analysis and calculations.
+      You receive delegated tasks from the coordinator.
+      You have access to a calculator tool for math operations.
+      Focus on detailed analysis and provide thorough responses.
+    reasoningLoopMaxSteps: 5
+  agentNetwork:
+    access: []
+

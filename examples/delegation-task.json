@@ -1,0 +1,10 @@
+{
+  "model": "ollama/smollm2:135m",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Ask worker-2 to calculate (48 / 6) + 17, then summarize the result."
+    }
+  ]
+}
+

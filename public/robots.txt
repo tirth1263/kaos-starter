@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://tirth1263.github.io/kaos-starter/sitemap.xml
+

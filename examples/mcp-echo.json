@@ -1,0 +1,7 @@
+{
+  "tool": "echo",
+  "arguments": {
+    "message": "Hello from MCP"
+  }
+}
+

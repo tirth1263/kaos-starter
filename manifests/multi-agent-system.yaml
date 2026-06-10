@@ -1,0 +1,172 @@
+---
+# KAOS Starter: Hosted Ollama multi-agent system with MCP tools.
+# Deploy: kubectl apply -f manifests/multi-agent-system.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+    app.kubernetes.io/part-of: kaos-starter
+---
+apiVersion: kaos.tools/v1alpha1
+kind: ModelAPI
+metadata:
+  name: ollama-smollm2
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+spec:
+  mode: Hosted
+  hostedConfig:
+    model: "smollm2:135m"
+---
+# MCPServer: Echo tool for connectivity checks.
+apiVersion: kaos.tools/v1alpha1
+kind: MCPServer
+metadata:
+  name: demo-echo-mcp
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+spec:
+  type: python-runtime
+  config:
+    tools:
+      fromPackage: "test-mcp-echo-server"
+---
+# MCPServer: Calculator tool with a narrow arithmetic-only evaluator.
+apiVersion: kaos.tools/v1alpha1
+kind: MCPServer
+metadata:
+  name: demo-calc-mcp
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+spec:
+  type: python-runtime
+  config:
+    tools:
+      fromString: |
+        import ast
+        import operator
+
+        _OPS = {
+            ast.Add: operator.add,
+            ast.Sub: operator.sub,
+            ast.Mult: operator.mul,
+            ast.Div: operator.truediv,
+            ast.Pow: operator.pow,
+            ast.USub: operator.neg,
+        }
+
+        def _eval(node):
+            if isinstance(node, ast.Expression):
+                return _eval(node.body)
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return node.value
+            if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
+                return _OPS[type(node.op)](_eval(node.left), _eval(node.right))
+            if isinstance(node, ast.UnaryOp) and type(node.op) in _OPS:
+                return _OPS[type(node.op)](_eval(node.operand))
+            raise ValueError("Only arithmetic expressions are supported.")
+
+        def calculate(expression: str) -> str:
+            """Evaluate a basic arithmetic expression and return the result."""
+            try:
+                parsed = ast.parse(expression, mode="eval")
+                return f"Result: {_eval(parsed)}"
+            except Exception as exc:
+                return f"Error: {exc}"
+---
+# Agent: Coordinator - orchestrates worker agents.
+apiVersion: kaos.tools/v1alpha1
+kind: Agent
+metadata:
+  name: coordinator
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+    app.kubernetes.io/component: coordinator
+spec:
+  model: "ollama/smollm2:135m"
+  modelAPI: ollama-smollm2
+  mcpServers:
+    - demo-echo-mcp
+    - demo-calc-mcp
+  config:
+    description: "Coordinator agent that orchestrates worker agents."
+    instructions: |
+      You are a coordinator agent managing a team of workers.
+      You can delegate tasks to:
+      - worker-1: General purpose tasks and echo checks.
+      - worker-2: Analysis and arithmetic tasks.
+
+      Decide whether to answer directly or delegate. Return concise,
+      practical results and include which worker was used when delegation
+      happens.
+    reasoningLoopMaxSteps: 10
+    env:
+      - name: MODEL_NAME
+        value: "ollama/smollm2:135m"
+  agentNetwork:
+    access:
+      - worker-1
+      - worker-2
+---
+# Agent: Worker 1 - general purpose worker.
+apiVersion: kaos.tools/v1alpha1
+kind: Agent
+metadata:
+  name: worker-1
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+    app.kubernetes.io/component: worker
+spec:
+  model: "ollama/smollm2:135m"
+  modelAPI: ollama-smollm2
+  mcpServers:
+    - demo-echo-mcp
+  config:
+    description: "General purpose worker agent."
+    instructions: |
+      You are worker-1, a general purpose assistant.
+      You receive delegated tasks from the coordinator.
+      You have access to an echo tool for testing and confirmation.
+      Complete tasks efficiently and return clear results.
+    reasoningLoopMaxSteps: 5
+    env:
+      - name: MODEL_NAME
+        value: "ollama/smollm2:135m"
+  agentNetwork:
+    access: []
+---
+# Agent: Worker 2 - calculation and analysis worker.
+apiVersion: kaos.tools/v1alpha1
+kind: Agent
+metadata:
+  name: worker-2
+  namespace: kaos-demo
+  labels:
+    app.kubernetes.io/name: kaos-starter
+    app.kubernetes.io/component: worker
+spec:
+  model: "ollama/smollm2:135m"
+  modelAPI: ollama-smollm2
+  mcpServers:
+    - demo-calc-mcp
+  config:
+    description: "Specialized analysis and calculator worker agent."
+    instructions: |
+      You are worker-2, specialized in analysis and calculations.
+      You receive delegated tasks from the coordinator.
+      Use the calculator tool for arithmetic and explain the result briefly.
+      Focus on accuracy, clarity, and useful reasoning.
+    reasoningLoopMaxSteps: 5
+    env:
+      - name: MODEL_NAME
+        value: "ollama/smollm2:135m"
+  agentNetwork:
+    access: []
+
