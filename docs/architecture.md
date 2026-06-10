@@ -6,14 +6,14 @@ KAOS Hosted `ModelAPI` running Ollama with `smollm2:135m`.
 
 ```mermaid
 flowchart TB
-    subgraph kube["Kubernetes Cluster"]
-        model["ModelAPI Hosted\nOllama + SmolLM2"]
-        coordinator["Coordinator Agent"]
-        worker1["Worker 1 Agent\nGeneral tasks"]
-        worker2["Worker 2 Agent\nAnalysis + calculations"]
-        echo["MCP Server\nEcho tool"]
-        calc["MCP Server\nCalculator tool"]
-        memory["Agent Memory\nEvents + sessions"]
+    subgraph kube[Kubernetes Cluster]
+        model[ModelAPI Hosted with Ollama SmolLM2]
+        coordinator[Coordinator Agent]
+        worker1[Worker 1 Agent General Tasks]
+        worker2[Worker 2 Agent Analysis and Calculations]
+        echo[MCP Server Echo Tool]
+        calc[MCP Server Calculator Tool]
+        memory[Agent Memory Events and Sessions]
     end
 
     coordinator --> worker1
@@ -43,4 +43,3 @@ flowchart TB
 topology but swaps the model layer to a KAOS Proxy `ModelAPI`. It expects a
 `nebius-secrets` secret in the `kaos-demo` namespace and routes models through
 the `nebius` provider.
-

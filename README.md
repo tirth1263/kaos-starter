@@ -30,14 +30,14 @@ defined, deployed, connected, and tested as first-class Kubernetes resources.
 
 ```mermaid
 flowchart TB
-    subgraph kube["Kubernetes Cluster"]
-        coor["Coordinator Agent"]
-        wor1["Worker 1 Agent"]
-        wor2["Worker 2 Agent"]
-        api["ModelAPI Hosted\nOllama + SmolLM2"]
-        echo["MCP Server\nEcho Tool"]
-        calc["MCP Server\nCalculator Tool"]
-        mem["Agent Memory\nEvents + Sessions"]
+    subgraph kube[Kubernetes Cluster]
+        coor[Coordinator Agent]
+        wor1[Worker 1 Agent]
+        wor2[Worker 2 Agent]
+        api[ModelAPI Hosted with Ollama SmolLM2]
+        echo[MCP Server Echo Tool]
+        calc[MCP Server Calculator Tool]
+        mem[Agent Memory Events and Sessions]
     end
 
     coor --> wor1
@@ -275,4 +275,3 @@ PowerShell:
 ## License
 
 MIT
-
